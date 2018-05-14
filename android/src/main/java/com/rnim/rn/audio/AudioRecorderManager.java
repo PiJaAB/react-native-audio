@@ -3,6 +3,7 @@ package com.rnim.rn.audio;
 import android.Manifest;
 import android.content.Context;
 
+import com.coremedia.iso.boxes.Container;
 import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContextBaseJavaModule;
 import com.facebook.react.bridge.ReactMethod;
@@ -14,12 +15,18 @@ import com.facebook.react.bridge.WritableMap;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
 import android.content.pm.PackageManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Environment;
 import android.media.MediaRecorder;
@@ -28,6 +35,11 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
+import com.googlecode.mp4parser.authoring.Movie;
+import com.googlecode.mp4parser.authoring.Track;
+import com.googlecode.mp4parser.authoring.builder.DefaultMp4Builder;
+import com.googlecode.mp4parser.authoring.container.mp4.MovieCreator;
+import com.googlecode.mp4parser.authoring.tracks.AppendTrack;
 
 import java.io.FileInputStream;
 
@@ -47,6 +59,8 @@ class AudioRecorderManager extends ReactContextBaseJavaModule {
   private static final String LibraryDirectoryPath = "LibraryDirectoryPath";
   private static final String MusicDirectoryPath = "MusicDirectoryPath";
   private static final String DownloadsDirectoryPath = "DownloadsDirectoryPath";
+
+  private static final String AudioRecorderEventFinished = "recordingFinished";
 
   private Context context;
   private MediaRecorder recorder;
@@ -103,6 +117,53 @@ class AudioRecorderManager extends ReactContextBaseJavaModule {
             Manifest.permission.RECORD_AUDIO);
     boolean permissionGranted = permissionCheck == PackageManager.PERMISSION_GRANTED;
     promise.resolve(permissionGranted);
+  }
+
+  @ReactMethod
+  public void mergeAACFiles(final String file1Path, final String file2Path, final String file3Path, final Promise promise) {
+
+    new AsyncTask<Void, Void, Void>() {
+
+      @Override
+      protected Void doInBackground(Void... params) {
+
+        try {
+          List<Movie> inMovies = new ArrayList<Movie>();
+          inMovies.add(MovieCreator.build(file1Path));
+          inMovies.add(MovieCreator.build(file2Path));
+
+          //List<Track> videoTracks = new LinkedList<Track>();
+          List<Track> audioTracks = new LinkedList<Track>();
+
+          for (Movie m : inMovies) {
+            for (Track t : m.getTracks()) {
+              if (t.getHandler().equals("soun")) {
+                audioTracks.add(t);
+              }
+            }
+          }
+
+          Movie result = new Movie();
+
+          if (!audioTracks.isEmpty()) {
+            result.addTrack(new AppendTrack(audioTracks.toArray(new Track[audioTracks.size()])));
+          }
+
+          Container out = new DefaultMp4Builder().build(result);
+
+
+          FileChannel fc = new RandomAccessFile(String.format(file3Path), "rw").getChannel();
+          out.writeContainer(fc);
+          fc.close();
+          promise.resolve(file3Path);
+        } catch (IOException e) {
+          logAndRejectPromise(promise, "COULDNT_PREPARE_RECORDING_AT_PATH "+file1Path, e.getMessage());
+        }
+
+
+        return null;
+      }
+    }.execute();
   }
 
   @ReactMethod
@@ -231,7 +292,9 @@ class AudioRecorderManager extends ReactContextBaseJavaModule {
     }
 
     promise.resolve(currentOutputFile);
-    sendEvent("recordingFinished", null);
+    WritableMap body = Arguments.createMap();
+    body.putString("audioFileURL", currentOutputFile);
+    sendEvent(AudioRecorderEventFinished, body);
   }
 
   @ReactMethod
