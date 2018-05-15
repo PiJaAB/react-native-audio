@@ -120,7 +120,7 @@ class AudioRecorderManager extends ReactContextBaseJavaModule {
   }
 
   @ReactMethod
-  public void mergeAACFiles(final String file1Path, final String file2Path, final String file3Path, final Promise promise) {
+  public void mergeSoundFiles(final String file1Path, final String file2Path, final String destinationFilePath, final Promise promise) {
 
     new AsyncTask<Void, Void, Void>() {
 
@@ -152,10 +152,10 @@ class AudioRecorderManager extends ReactContextBaseJavaModule {
           Container out = new DefaultMp4Builder().build(result);
 
 
-          FileChannel fc = new RandomAccessFile(String.format(file3Path), "rw").getChannel();
+          FileChannel fc = new RandomAccessFile(String.format(destinationFilePath), "rw").getChannel();
           out.writeContainer(fc);
           fc.close();
-          promise.resolve(file3Path);
+          promise.resolve(destinationFilePath);
         } catch (IOException e) {
           logAndRejectPromise(promise, "COULDNT_PREPARE_RECORDING_AT_PATH "+file1Path, e.getMessage());
         }

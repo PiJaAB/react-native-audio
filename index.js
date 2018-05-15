@@ -73,6 +73,9 @@ var AudioRecorder = {
   stopRecording: function() {
     return AudioRecorderManager.stopRecording();
   },
+  mergeSoundFiles: function() {
+    return AudioRecorderManager.mergeSoundFiles(file1Path, file2Path, destinationFilePath)
+  },
   checkAuthorizationStatus: AudioRecorderManager.checkAuthorizationStatus,
   requestAuthorization: AudioRecorderManager.requestAuthorization,
   removeListeners: function() {
